@@ -9,8 +9,8 @@
 
 
 from PyQt5 import QtCore, QtGui, QtWidgets
+from PyQt5.QtWidgets import QComboBox, QItemDelegate
 import psycopg2
-
 
 
 class Ui_MainWindow(object):
@@ -50,6 +50,13 @@ class Ui_MainWindow(object):
         self.statusbar = QtWidgets.QStatusBar(MainWindow)
         self.statusbar.setObjectName("statusbar")
         MainWindow.setStatusBar(self.statusbar)
+
+         # Create a QComboBox for the stock column
+        self.stock_combo_box = QComboBox()
+        self.stock_combo_box.addItems(["Books", "LightBulb", "Flowers", "Phones","laptop"])  # Add your desired items here
+
+        # Set the QComboBox as the item delegate for the stock column
+        self.table.setItemDelegateForColumn(0, MyComboBoxDelegate(self.stock_combo_box))
 
 
         self.pushButton.clicked.connect(self.submit_data)
@@ -105,15 +112,6 @@ class Ui_MainWindow(object):
             """)
 
 
-        # # Retrieve initial balance and total profit from the database
-        # cur.execute("SELECT balance, total_profit FROM invent")
-        # result = cur.fetchone()
-        # if result:
-        #     initial_balance, initial_total_profit = result
-        # else:
-        #     # Set initial balance and total profit to 0 if no result is returned
-        #     initial_balance = 0
-        #     initial_total_profit = 0
 
         # Insert data into PostgreSQL database
         for row in range(rows):
@@ -122,20 +120,29 @@ class Ui_MainWindow(object):
             buying_price = float(self.table.item(row, 2).text())
             selling_price = float(self.table.item(row, 3).text())
 
-            # # Calculate balance and profit based on user input
-            # balance = initial_balance - quantity
-            # profit = selling_price - buying_price
-            # total_profit = initial_total_profit + (profit * quantity)
+             # Calculate profit
+            profit = selling_price - buying_price
+
+            # calculating total profit
+            total_profit = profit * quantity
+
+
 
             # Insert data into the database
-        cur.execute("INSERT INTO invent (stock, quantity, buying_price, selling_price) VALUES (%s, %s, %s, %s)",
-                    (stock, quantity, buying_price, selling_price))
-        # balance, profit, total_profit
-
+        cur.execute("INSERT INTO invent (stock, quantity, buying_price, selling_price, profit, total_profit) VALUES (%s, %s, %s, %s, %s, %s)",
+                    (stock, quantity, buying_price, selling_price, profit, total_profit))
 
         # Commit changes and close connection
         conn.commit()
         conn.close()
+
+class MyComboBoxDelegate(QItemDelegate):
+    def __init__(self, combo_box):
+        super().__init__()
+        self.combo_box = combo_box
+
+    def createEditor(self, parent, option, index):
+        return self.combo_box
 
 
 if __name__ == "__main__":
