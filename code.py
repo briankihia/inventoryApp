@@ -93,7 +93,7 @@ class Ui_MainWindow(object):
         )
         cur = conn.cursor()
 
-        # Check if the table exists
+        # Check if the table invent exists
         cur.execute("SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'invent')")
         table_exists = cur.fetchone()[0]
 
@@ -101,16 +101,30 @@ class Ui_MainWindow(object):
         if not table_exists:
             cur.execute("""
                 CREATE TABLE invent (
+                    id SERIAL PRIMARY KEY,
                     stock VARCHAR(255),
-                    quantity INTEGER,
-                    balance NUMERIC,
-                    buying_price NUMERIC,
-                    selling_price NUMERIC,
-                    profit NUMERIC,
-                    total_profit NUMERIC
+                    quantity INTEGER
                     )
             """)
 
+            # check if the table transactions exist
+        cur.execute("SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'transactions')")
+        table_exists = cur.fetchone()[0]
+
+        if not table_exists:
+            cur.execute("""
+                CREATE TABLE transactions (
+                    id SERIAL PRIMARY KEY,
+                    transaction_type VARCHAR(100),
+                    stock VARCHAR(255),
+                    quantity INTEGER,
+                    buying_price NUMERIC,
+                    selling_price NUMERIC,
+                    profit NUMERIC,
+                    total_profit NUMERIC,
+                    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
 
 
         # Insert data into PostgreSQL database
@@ -127,10 +141,50 @@ class Ui_MainWindow(object):
             total_profit = profit * quantity
 
 
+            # Check if the stock item already exists
+            cur.execute("SELECT id, quantity FROM invent WHERE stock = %s", (stock,))
+            existing_record = cur.fetchone()
+
+
+            if existing_record:
+            # If the stock item exists, update its information
+                new_quantity = existing_record[1] - quantity  # Subtract quantity
+                cur.execute("""
+                    UPDATE invent
+                    SET quantity = %s, buying_price = %s, selling_price = %s
+                    WHERE id = %s
+                """, (new_quantity, buying_price, selling_price, existing_record[0]))
+
+            
+             # Log the transaction
+                cur.execute("""
+                    INSERT INTO transactions (transaction_type, stock, quantity)
+                    VALUES ('Subtraction', %s, %s)
+                """, (stock, quantity))
+
+            
+            else:
+            # If the stock item doesn't exist, insert a new record
+                cur.execute("""
+                    INSERT INTO invent (stock, quantity )
+                    VALUES (%s, %s)
+                    RETURNING id
+                """, (stock, quantity))
+                existing_record = cur.fetchone()
+
+
+                 # Log the transaction
+                cur.execute("""
+                    INSERT INTO transactions (transaction_type, stock, quantity, buying_price, selling_price, profit, total_profit)
+                    VALUES ('Addition', %s, %s , %s, %s, %s, %s)
+                """, (stock, quantity, buying_price, selling_price, profit, total_profit))
+
+
+        
 
             # Insert data into the database
-        cur.execute("INSERT INTO invent (stock, quantity, buying_price, selling_price, profit, total_profit) VALUES (%s, %s, %s, %s, %s, %s)",
-                    (stock, quantity, buying_price, selling_price, profit, total_profit))
+        # cur.execute("INSERT INTO invent (stock, quantity, buying_price, selling_price, profit, total_profit) VALUES (%s, %s, %s, %s, %s, %s)",
+        #             (stock, quantity, buying_price, selling_price, profit, total_profit))
 
         # Commit changes and close connection
         conn.commit()
